@@ -16,7 +16,7 @@ type Config struct {
 	// Each regular expression must match the full type name, including package path.
 	// For example, to match type `net/http.Cookie` regular expression should be
 	// `.*/http\.Cookie`, but not `http\.Cookie`.
-	EnforcePatterns []string `exhaustruct:"optional"`
+	EnforcePatterns Patterns `exhaustruct:"optional"`
 
 	// IgnorePatterns is a list of regular expressions to match type names that
 	// should be skipped from checking. Anonymous structs can be matched by
@@ -27,7 +27,7 @@ type Config struct {
 	// Each regular expression must match the full type name, including package path.
 	// For example, to match type `net/http.Cookie` regular expression should be
 	// `.*/http\.Cookie`, but not `http\.Cookie`.
-	IgnorePatterns []string `exhaustruct:"optional"`
+	IgnorePatterns Patterns `exhaustruct:"optional"`
 
 	// OptionalPatterns is a list of regular expressions to match type names where
 	// all fields are treated as optional. Anonymous structs can be matched by
@@ -36,7 +36,7 @@ type Config struct {
 	// Each regular expression must match the full type name, including package path.
 	// For example, to match type `net/http.Cookie` regular expression should be
 	// `.*/http\.Cookie`, but not `http\.Cookie`.
-	OptionalPatterns []string `exhaustruct:"optional"`
+	OptionalPatterns Patterns `exhaustruct:"optional"`
 
 	// AllowEmpty allows empty structures, effectively excluding them from the check.
 	AllowEmpty bool `exhaustruct:"optional"`
@@ -48,7 +48,7 @@ type Config struct {
 	// Each regular expression must match the full type name, including package path.
 	// For example, to match type `net/http.Cookie` regular expression should be
 	// `.*/http\.Cookie`, but not `http\.Cookie`.
-	AllowEmptyPatterns []string `exhaustruct:"optional"`
+	AllowEmptyPatterns Patterns `exhaustruct:"optional"`
 
 	// AllowEmptyReturns allows empty structures in return statements.
 	AllowEmptyReturns bool `exhaustruct:"optional"`
@@ -69,25 +69,25 @@ type Config struct {
 	ExplicitMode bool `exhaustruct:"optional"`
 }
 
-// BindToFlagSet binds the config fields to the provided flag set.
-func (c *Config) BindToFlagSet(fs *flag.FlagSet) *flag.FlagSet {
+// bindToFlagSet binds the config fields to the provided flag set.
+func bindToFlagSet(fs *flag.FlagSet, c *Config) {
 	fs.BoolVar(&c.ExplicitMode, "explicit", c.ExplicitMode,
 		"Enable explicit mode: only check types marked with //exhaustruct:enforce "+
 			"directive or matching -enforce-rx patterns")
 
-	fs.Var((*patternsFlag)(&c.EnforcePatterns), "enforce-rx",
+	fs.Var(&c.EnforcePatterns, "enforce-rx",
 		"Regular expression to match type names that should be checked. "+
 			"Anonymous structs can be matched by '<anonymous>' alias. "+
 			"Each regex must match the full type name including package path. "+
 			"Example: `.*/http\\.Cookie`. Can be used multiple times.")
 
-	fs.Var((*patternsFlag)(&c.IgnorePatterns), "ignore-rx",
+	fs.Var(&c.IgnorePatterns, "ignore-rx",
 		"Regular expression to skip type names from checking, has precedence over -enforce-rx. "+
 			"Anonymous structs can be matched by '<anonymous>' alias. "+
 			"Each regex must match the full type name including package path. "+
 			"Example: `.*/http\\.Cookie`. Can be used multiple times.")
 
-	fs.Var((*patternsFlag)(&c.OptionalPatterns), "optional-rx",
+	fs.Var(&c.OptionalPatterns, "optional-rx",
 		"Regular expression to match type names where all fields are optional. "+
 			"Anonymous structs can be matched by '<anonymous>' alias. "+
 			"Each regex must match the full type name including package path. "+
@@ -96,7 +96,7 @@ func (c *Config) BindToFlagSet(fs *flag.FlagSet) *flag.FlagSet {
 	fs.BoolVar(&c.AllowEmpty, "allow-empty", c.AllowEmpty,
 		"Allow empty structures, effectively excluding them from the check")
 
-	fs.Var((*patternsFlag)(&c.AllowEmptyPatterns), "allow-empty-rx",
+	fs.Var(&c.AllowEmptyPatterns, "allow-empty-rx",
 		"Regular expression to match type names that should be allowed to be empty. "+
 			"Anonymous structs can be matched by '<anonymous>' alias. "+
 			"Each regex must match the full type name including package path. "+
@@ -115,15 +115,13 @@ func (c *Config) BindToFlagSet(fs *flag.FlagSet) *flag.FlagSet {
 	fs.BoolVar(&c.DebugCacheMetrics, "debug-cache-metrics", c.DebugCacheMetrics,
 		"Print cache and memory metrics to stderr after each package analysis. "+
 			"It will significantly increase the output, since metrics are printed for each analyzed package.")
-
-	return fs
 }
 
-// patternsFlag adapts a []string to flag.Value, validating each value as a
+// Patterns adapts a []string to flag.Value, validating each value as a
 // regular expression at flag-parse time so invalid patterns fail early.
-type patternsFlag []string
+type Patterns []string
 
-func (p *patternsFlag) String() string {
+func (p *Patterns) String() string {
 	if p == nil {
 		return ""
 	}
@@ -131,7 +129,7 @@ func (p *patternsFlag) String() string {
 	return strings.Join(*p, ",")
 }
 
-func (p *patternsFlag) Set(value string) error {
+func (p *Patterns) Set(value string) error {
 	if value == "" {
 		return e.New("empty regular expression is not allowed")
 	}

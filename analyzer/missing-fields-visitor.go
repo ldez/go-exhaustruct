@@ -14,46 +14,44 @@ import (
 	"dev.gaijin.team/go/exhaustruct/v5/internal/structure"
 )
 
+//nolint:forcetypeassert,gochecknoglobals
+var builtinErrorInterface = types.Universe.Lookup("error").Type().Underlying().(*types.Interface)
+
 // missingFieldsVisitor checks struct literals for missing field initializations.
 type missingFieldsVisitor struct {
-	analyzer *analyzer
-	pass     *analysis.Pass
-	insp     *inspector.Inspector
+	config    *Config
+	processor *structure.Processor
 }
 
-func newMissingFieldsVisitor(
-	a *analyzer,
-	pass *analysis.Pass,
-	insp *inspector.Inspector,
-) *missingFieldsVisitor {
-	return &missingFieldsVisitor{analyzer: a, pass: pass, insp: insp}
-}
-
-func (v *missingFieldsVisitor) run() {
-	v.insp.WithStack([]ast.Node{(*ast.CompositeLit)(nil)}, v.visit)
-}
-
-func (v *missingFieldsVisitor) visit(n ast.Node, push bool, stack []ast.Node) bool {
-	if !push {
-		return true
+func newMissingFieldsVisitor(config *Config, processor *structure.Processor) *missingFieldsVisitor {
+	return &missingFieldsVisitor{
+		config:    config,
+		processor: processor,
 	}
-
-	lit, ok := n.(*ast.CompositeLit)
-	if !ok {
-		return true
-	}
-
-	lv := literalVisitor{analysis: v, lit: lit, stack: stack}
-	lv.process()
-
-	return true
 }
 
-// literalVisitor carries context for processing a single composite literal.
-type literalVisitor struct {
-	analysis *missingFieldsVisitor
-	lit      *ast.CompositeLit
-	stack    []ast.Node
+func (v *missingFieldsVisitor) run(pass *analysis.Pass, insp *inspector.Inspector) {
+	insp.WithStack([]ast.Node{(*ast.CompositeLit)(nil)}, func(n ast.Node, push bool, stack []ast.Node) bool {
+		if !push {
+			return true
+		}
+
+		lit, ok := n.(*ast.CompositeLit)
+		if !ok {
+			return true
+		}
+
+		lv := literalVisitor{
+			pass:      pass,
+			config:    v.config,
+			processor: v.processor,
+			lit:       lit,
+			stack:     stack,
+		}
+		lv.process()
+
+		return true
+	})
 }
 
 // literal holds resolved info for a struct literal being checked.
@@ -84,6 +82,16 @@ func (l literal) shouldCheck(explicitMode bool) bool {
 	return !explicitMode
 }
 
+// literalVisitor carries context for processing a single composite literal.
+type literalVisitor struct {
+	pass      *analysis.Pass
+	config    *Config
+	processor *structure.Processor
+
+	lit   *ast.CompositeLit
+	stack []ast.Node
+}
+
 func (lv literalVisitor) process() {
 	lit, ok := lv.resolveLiteral()
 	if !ok {
@@ -95,7 +103,7 @@ func (lv literalVisitor) process() {
 	}
 
 	if pos, msg := lv.checkLiteral(lit); pos != nil {
-		lv.analysis.pass.Reportf(*pos, "%s", msg)
+		lv.pass.Reportf(*pos, "%s", msg)
 	}
 }
 
@@ -107,23 +115,23 @@ func (lv literalVisitor) resolveLiteral() (lit literal, ok bool) {
 		return literal{}, false //nolint:exhaustruct
 	}
 
-	s, diags := lv.analysis.analyzer.processor.ResolveStruct(
-		lv.analysis.pass.Fset, typeName, strct, pos, lv.analysis.pass.Pkg,
+	s, diags := lv.processor.ResolveStruct(
+		lv.pass.Fset, typeName, strct, pos, lv.pass.Pkg,
 	)
 
 	for _, diag := range diags {
-		lv.analysis.pass.Report(diag)
+		lv.pass.Report(diag)
 	}
 
 	if s == nil {
 		return literal{}, false //nolint:exhaustruct
 	}
 
-	litPos := lv.analysis.pass.Fset.Position(lv.lit.Pos())
-	dirs, dirDiags := lv.analysis.analyzer.directives.Lookup(lv.analysis.pass.Fset, litPos)
+	litPos := lv.pass.Fset.Position(lv.lit.Pos())
+	dirs, dirDiags := lv.processor.Directives().Lookup(lv.pass.Fset, litPos)
 
 	for _, d := range dirDiags {
-		lv.analysis.pass.Report(d)
+		lv.pass.Report(d)
 	}
 
 	return literal{
@@ -135,7 +143,7 @@ func (lv literalVisitor) resolveLiteral() (lit literal, ok bool) {
 
 // resolveLiteralType resolves the composite literal's type and definition position.
 func (lv literalVisitor) resolveLiteralType() (name *types.TypeName, strct *types.Struct, pos token.Pos) {
-	typ := lv.analysis.pass.TypesInfo.TypeOf(lv.lit)
+	typ := lv.pass.TypesInfo.TypeOf(lv.lit)
 
 	if ptr, ok := typ.(*types.Pointer); ok {
 		typ = ptr.Elem()
@@ -198,36 +206,8 @@ func (lv literalVisitor) findAnonymousStructPos() token.Pos {
 	return token.NoPos
 }
 
-func structPosFromType(typ ast.Expr) token.Pos {
-	if typ == nil {
-		return token.NoPos
-	}
-
-	switch t := typ.(type) {
-	case *ast.ArrayType:
-		return structPosFromExpr(t.Elt)
-
-	case *ast.MapType:
-		return structPosFromExpr(t.Value)
-	}
-
-	return token.NoPos
-}
-
-func structPosFromExpr(expr ast.Expr) token.Pos {
-	if star, ok := expr.(*ast.StarExpr); ok {
-		expr = star.X
-	}
-
-	if st, ok := expr.(*ast.StructType); ok {
-		return st.Struct
-	}
-
-	return token.NoPos
-}
-
 func (lv literalVisitor) checkEmptyAllowed(s *structure.Struct) bool {
-	if lv.analysis.analyzer.config.AllowEmpty {
+	if lv.config.AllowEmpty {
 		return true
 	}
 
@@ -236,7 +216,7 @@ func (lv literalVisitor) checkEmptyAllowed(s *structure.Struct) bool {
 	}
 
 	if ret, ok := lv.getParentReturnStmt(); ok {
-		if lv.analysis.analyzer.config.AllowEmptyReturns {
+		if lv.config.AllowEmptyReturns {
 			return true
 		}
 
@@ -245,7 +225,7 @@ func (lv literalVisitor) checkEmptyAllowed(s *structure.Struct) bool {
 		}
 	}
 
-	if lv.isChildOfVariableDeclaration() && lv.analysis.analyzer.config.AllowEmptyDeclarations {
+	if lv.isChildOfVariableDeclaration() && lv.config.AllowEmptyDeclarations {
 		return true
 	}
 
@@ -253,13 +233,13 @@ func (lv literalVisitor) checkEmptyAllowed(s *structure.Struct) bool {
 }
 
 func (lv literalVisitor) checkLiteral(lit literal) (*token.Pos, string) {
-	if !lit.shouldCheck(lv.analysis.analyzer.config.ExplicitMode) {
+	if !lit.shouldCheck(lv.config.ExplicitMode) {
 		return nil, ""
 	}
 
 	strct := lit.strct
 
-	missingFields := strct.SkippedFields(lv.lit, lv.analysis.pass.Pkg.Path())
+	missingFields := strct.SkippedFields(lv.lit, lv.pass.Pkg.Path())
 
 	if len(missingFields) == 0 {
 		return nil, ""
@@ -268,7 +248,7 @@ func (lv literalVisitor) checkLiteral(lit literal) (*token.Pos, string) {
 	pos := lv.lit.Pos()
 
 	displayName := strct.PackageName + "." + strct.Name
-	if lv.analysis.analyzer.config.ReportFullTypePath {
+	if lv.config.ReportFullTypePath {
 		displayName = strct.FullPath
 	}
 
@@ -338,9 +318,6 @@ func (lv literalVisitor) getParentReturnStmt() (*ast.ReturnStmt, bool) {
 	return nil, false
 }
 
-//nolint:forcetypeassert,gochecknoglobals
-var builtinErrorInterface = types.Universe.Lookup("error").Type().Underlying().(*types.Interface)
-
 func (lv literalVisitor) isErrorReturnStatement(n *ast.ReturnStmt) bool {
 	if len(n.Results) == 0 {
 		return false
@@ -365,11 +342,39 @@ func (lv literalVisitor) isErrorReturnStatement(n *ast.ReturnStmt) bool {
 			}
 		}
 
-		resultType := lv.analysis.pass.TypesInfo.TypeOf(ri)
+		resultType := lv.pass.TypesInfo.TypeOf(ri)
 		if resultType != nil && types.Implements(resultType, builtinErrorInterface) {
 			return true
 		}
 	}
 
 	return false
+}
+
+func structPosFromType(typ ast.Expr) token.Pos {
+	if typ == nil {
+		return token.NoPos
+	}
+
+	switch t := typ.(type) {
+	case *ast.ArrayType:
+		return structPosFromExpr(t.Elt)
+
+	case *ast.MapType:
+		return structPosFromExpr(t.Value)
+	}
+
+	return token.NoPos
+}
+
+func structPosFromExpr(expr ast.Expr) token.Pos {
+	if star, ok := expr.(*ast.StarExpr); ok {
+		expr = star.X
+	}
+
+	if st, ok := expr.(*ast.StructType); ok {
+		return st.Struct
+	}
+
+	return token.NoPos
 }

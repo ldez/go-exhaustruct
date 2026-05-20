@@ -15,7 +15,7 @@ var testdataPath, _ = filepath.Abs("./testdata/") //nolint:gochecknoglobals
 func TestAnalyzer(t *testing.T) {
 	t.Parallel()
 
-	a, err := analyzer.NewAnalyzer(analyzer.Config{
+	a, err := analyzer.NewAnalyzerWithConfig(&analyzer.Config{
 		EnforcePatterns: []string{`.*\.TestExcluded`, `.*\.<anonymous>`},
 		IgnorePatterns:  []string{`.*Excluded$`, `testdata/config/excluded\.<anonymous>`},
 	})
@@ -27,7 +27,7 @@ func TestAnalyzer(t *testing.T) {
 func TestAnalyzerReportFullTypePath(t *testing.T) {
 	t.Parallel()
 
-	a, err := analyzer.NewAnalyzer(analyzer.Config{
+	a, err := analyzer.NewAnalyzerWithConfig(&analyzer.Config{
 		ReportFullTypePath: true,
 	})
 	require.NoError(t, err)
@@ -41,10 +41,7 @@ func TestAnalyzerReportFullTypePath(t *testing.T) {
 func TestAnalyzer_FlagsAffectAnalysis(t *testing.T) {
 	t.Parallel()
 
-	a, err := analyzer.NewAnalyzer(analyzer.Config{
-		ExplicitMode: true,
-	})
-	require.NoError(t, err)
+	a := analyzer.NewAnalyzer()
 
 	require.NoError(t, a.Flags.Set("enforce-rx", `.*\.Test`))
 
@@ -56,13 +53,13 @@ func TestAnalyzerTypes(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		config      analyzer.Config
+		config      *analyzer.Config
 		testPackage string
 		testFixes   bool
 	}{
 		{
 			name: "basic",
-			config: analyzer.Config{
+			config: &analyzer.Config{
 				EnforcePatterns: []string{`.*\.Test`},
 			},
 			testPackage: "testdata/types/basic",
@@ -70,7 +67,7 @@ func TestAnalyzerTypes(t *testing.T) {
 		},
 		{
 			name: "aliases",
-			config: analyzer.Config{
+			config: &analyzer.Config{
 				EnforcePatterns: []string{`.*\.(Base|Alias|Simple).*`},
 				IgnorePatterns:  []string{`.*Excluded.*`},
 			},
@@ -79,7 +76,7 @@ func TestAnalyzerTypes(t *testing.T) {
 		},
 		{
 			name: "derived",
-			config: analyzer.Config{
+			config: &analyzer.Config{
 				EnforcePatterns: []string{`.*\.(Base|Derived|External|Simple).*`},
 				IgnorePatterns:  []string{`.*Excluded.*`},
 			},
@@ -88,7 +85,7 @@ func TestAnalyzerTypes(t *testing.T) {
 		},
 		{
 			name: "embedded",
-			config: analyzer.Config{
+			config: &analyzer.Config{
 				EnforcePatterns: []string{`.*\.(Embedded|TestEmbedded|Simple).*`},
 			},
 			testPackage: "testdata/types/embedded",
@@ -96,7 +93,7 @@ func TestAnalyzerTypes(t *testing.T) {
 		},
 		{
 			name: "generics",
-			config: analyzer.Config{
+			config: &analyzer.Config{
 				EnforcePatterns: []string{`.*\.testGenericStruct`},
 			},
 			testPackage: "testdata/types/generics",
@@ -104,7 +101,7 @@ func TestAnalyzerTypes(t *testing.T) {
 		},
 		{
 			name: "collections",
-			config: analyzer.Config{
+			config: &analyzer.Config{
 				EnforcePatterns: []string{`.*\.Test`},
 			},
 			testPackage: "testdata/types/collections",
@@ -112,7 +109,7 @@ func TestAnalyzerTypes(t *testing.T) {
 		},
 		{
 			name: "anonymous",
-			config: analyzer.Config{
+			config: &analyzer.Config{
 				EnforcePatterns: []string{`.*\.<anonymous>`},
 			},
 			testPackage: "testdata/types/anonymous",
@@ -120,7 +117,7 @@ func TestAnalyzerTypes(t *testing.T) {
 		},
 		{
 			name: "directives",
-			config: analyzer.Config{
+			config: &analyzer.Config{
 				EnforcePatterns: []string{`.*\.(Test|Embedded|Simple|WithOptionalDirective).*`},
 				IgnorePatterns:  []string{`.*Excluded.*`},
 			},
@@ -129,7 +126,7 @@ func TestAnalyzerTypes(t *testing.T) {
 		},
 		{
 			name: "filtering",
-			config: analyzer.Config{
+			config: &analyzer.Config{
 				EnforcePatterns: []string{`.*\.Test.*`},
 				IgnorePatterns:  []string{`.*Excluded.*`},
 				ExplicitMode:    true,
@@ -139,7 +136,7 @@ func TestAnalyzerTypes(t *testing.T) {
 		},
 		{
 			name: "optional_pattern",
-			config: analyzer.Config{
+			config: &analyzer.Config{
 				EnforcePatterns:  []string{`.*\.Test.*`},
 				OptionalPatterns: []string{`.*\.TestOptionalByPattern`},
 				ExplicitMode:     true,
@@ -149,7 +146,7 @@ func TestAnalyzerTypes(t *testing.T) {
 		},
 		{
 			name: "explicit mode with directives",
-			config: analyzer.Config{
+			config: &analyzer.Config{
 				EnforcePatterns: []string{`.*Enforced.*`},
 				ExplicitMode:    true,
 			},
@@ -158,7 +155,7 @@ func TestAnalyzerTypes(t *testing.T) {
 		},
 		{
 			name:        "deprecated tags",
-			config:      analyzer.Config{},
+			config:      &analyzer.Config{},
 			testPackage: "testdata/types/tags",
 			testFixes:   true,
 		},
@@ -168,7 +165,7 @@ func TestAnalyzerTypes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			a, err := analyzer.NewAnalyzer(tt.config)
+			a, err := analyzer.NewAnalyzerWithConfig(tt.config)
 			require.NoError(t, err)
 
 			if tt.testFixes {

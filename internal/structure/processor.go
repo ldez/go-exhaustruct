@@ -58,6 +58,10 @@ func NewProcessor(directives *directive.Scanner, origins *OriginScanner, opts ..
 	return p
 }
 
+func (p *Processor) Directives() *directive.Scanner {
+	return p.directives
+}
+
 // ResolveStruct returns Struct metadata for the given type.
 // Type resolution (pointers, aliases) is done by the caller.
 //

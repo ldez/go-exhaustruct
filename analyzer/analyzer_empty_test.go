@@ -14,40 +14,40 @@ func TestAnalyzerEmpty(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		config      analyzer.Config
+		config      *analyzer.Config
 		testPackage string
 	}{
 		{
 			name: "allow empty globally",
-			config: analyzer.Config{
+			config: &analyzer.Config{
 				AllowEmpty: true,
 			},
 			testPackage: "testdata/config/allow_empty/global",
 		},
 		{
 			name: "allow empty returns",
-			config: analyzer.Config{
+			config: &analyzer.Config{
 				AllowEmptyReturns: true,
 			},
 			testPackage: "testdata/config/allow_empty/returns",
 		},
 		{
 			name: "allow empty declarations",
-			config: analyzer.Config{
+			config: &analyzer.Config{
 				AllowEmptyDeclarations: true,
 			},
 			testPackage: "testdata/config/allow_empty/declarations",
 		},
 		{
 			name: "allow empty by pattern",
-			config: analyzer.Config{
+			config: &analyzer.Config{
 				AllowEmptyPatterns: []string{".*Allowed.*", ".*Nested.*"},
 			},
 			testPackage: "testdata/config/allow_empty/patterns",
 		},
 		{
 			name:   "error returns behavior",
-			config: analyzer.Config{
+			config: &analyzer.Config{
 				// Test error returns without any special allowances -
 				// structures should be allowed in error returns by default
 			},
@@ -59,7 +59,7 @@ func TestAnalyzerEmpty(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			a, err := analyzer.NewAnalyzer(tt.config)
+			a, err := analyzer.NewAnalyzerWithConfig(tt.config)
 			require.NoError(t, err)
 
 			analysistest.Run(t, testdataPath, a, tt.testPackage)

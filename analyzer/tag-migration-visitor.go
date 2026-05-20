@@ -12,45 +12,37 @@ import (
 
 // tagMigrationVisitor scans struct definitions for deprecated exhaustruct tags
 // and emits migration diagnostics with suggested fixes.
-type tagMigrationVisitor struct {
-	pass *analysis.Pass
-	insp *inspector.Inspector
-}
+type tagMigrationVisitor struct{}
 
-func newTagMigrationVisitor(
-	pass *analysis.Pass,
-	insp *inspector.Inspector,
-) *tagMigrationVisitor {
-	return &tagMigrationVisitor{pass: pass, insp: insp}
+func newTagMigrationVisitor() *tagMigrationVisitor {
+	return &tagMigrationVisitor{}
 }
 
 // run uses inspector to traverse StructType nodes efficiently.
-func (v *tagMigrationVisitor) run() {
-	v.insp.Preorder([]ast.Node{new(ast.StructType)}, v.visitStructType)
-}
-
-func (v *tagMigrationVisitor) visitStructType(n ast.Node) {
-	st, ok := n.(*ast.StructType)
-	if !ok {
-		return
-	}
-
-	if st.Fields == nil {
-		return
-	}
-
-	for _, field := range st.Fields.List {
-		if field.Tag == nil {
-			continue
-		}
-
-		value, ok := parseExhaustructTag(field.Tag.Value)
+func (v *tagMigrationVisitor) run(pass *analysis.Pass, insp *inspector.Inspector) {
+	insp.Preorder([]ast.Node{new(ast.StructType)}, func(n ast.Node) {
+		st, ok := n.(*ast.StructType)
 		if !ok {
-			continue
+			return
 		}
 
-		v.pass.Report(v.buildDiagnostic(field, value))
-	}
+		if st.Fields == nil {
+			return
+		}
+
+		for _, field := range st.Fields.List {
+			if field.Tag == nil {
+				continue
+			}
+
+			value, ok := parseExhaustructTag(field.Tag.Value)
+			if !ok {
+				continue
+			}
+
+			pass.Report(v.buildDiagnostic(field, value))
+		}
+	})
 }
 
 const exhaustructTagKey = "exhaustruct"

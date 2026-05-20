@@ -14,8 +14,10 @@ func TestConfig_BindToFlagSet(t *testing.T) {
 	t.Run("bind all flags", func(t *testing.T) {
 		t.Parallel()
 
-		config := Config{}
-		fs := config.BindToFlagSet(flag.NewFlagSet("test", flag.ContinueOnError))
+		config := &Config{}
+
+		fs := flag.NewFlagSet("test", flag.ContinueOnError)
+		bindToFlagSet(fs, config)
 
 		expectedFlags := []string{
 			"enforce-rx", "ignore-rx", "optional-rx",
@@ -33,44 +35,52 @@ func TestConfig_BindToFlagSet(t *testing.T) {
 	t.Run("flag parsing enforce patterns", func(t *testing.T) {
 		t.Parallel()
 
-		config := Config{}
-		fs := config.BindToFlagSet(flag.NewFlagSet("test", flag.ContinueOnError))
+		config := &Config{}
+
+		fs := flag.NewFlagSet("test", flag.ContinueOnError)
+		bindToFlagSet(fs, config)
 
 		args := []string{"-enforce-rx", ".*Test.*", "-enforce-rx", ".*Mock.*"}
 		require.NoError(t, fs.Parse(args))
 
-		assert.Equal(t, []string{".*Test.*", ".*Mock.*"}, config.EnforcePatterns)
+		assert.Equal(t, Patterns{".*Test.*", ".*Mock.*"}, config.EnforcePatterns)
 	})
 
 	t.Run("flag parsing ignore patterns", func(t *testing.T) {
 		t.Parallel()
 
-		config := Config{}
-		fs := config.BindToFlagSet(flag.NewFlagSet("test", flag.ContinueOnError))
+		config := &Config{}
+
+		fs := flag.NewFlagSet("test", flag.ContinueOnError)
+		bindToFlagSet(fs, config)
 
 		args := []string{"-ignore-rx", ".*Ignore.*", "-ignore-rx", ".*Skip.*"}
 		require.NoError(t, fs.Parse(args))
 
-		assert.Equal(t, []string{".*Ignore.*", ".*Skip.*"}, config.IgnorePatterns)
+		assert.Equal(t, Patterns{".*Ignore.*", ".*Skip.*"}, config.IgnorePatterns)
 	})
 
 	t.Run("flag parsing optional patterns", func(t *testing.T) {
 		t.Parallel()
 
-		config := Config{}
-		fs := config.BindToFlagSet(flag.NewFlagSet("test", flag.ContinueOnError))
+		config := &Config{}
+
+		fs := flag.NewFlagSet("test", flag.ContinueOnError)
+		bindToFlagSet(fs, config)
 
 		args := []string{"-optional-rx", ".*Optional.*"}
 		require.NoError(t, fs.Parse(args))
 
-		assert.Equal(t, []string{".*Optional.*"}, config.OptionalPatterns)
+		assert.Equal(t, Patterns{".*Optional.*"}, config.OptionalPatterns)
 	})
 
 	t.Run("flag parsing boolean flags", func(t *testing.T) {
 		t.Parallel()
 
-		config := Config{}
-		fs := config.BindToFlagSet(flag.NewFlagSet("test", flag.ContinueOnError))
+		config := &Config{}
+
+		fs := flag.NewFlagSet("test", flag.ContinueOnError)
+		bindToFlagSet(fs, config)
 
 		args := []string{"-allow-empty", "-allow-empty-returns", "-allow-empty-declarations"}
 		require.NoError(t, fs.Parse(args))
@@ -83,20 +93,24 @@ func TestConfig_BindToFlagSet(t *testing.T) {
 	t.Run("flag parsing allow-empty-rx patterns", func(t *testing.T) {
 		t.Parallel()
 
-		config := Config{}
-		fs := config.BindToFlagSet(flag.NewFlagSet("test", flag.ContinueOnError))
+		config := &Config{}
+
+		fs := flag.NewFlagSet("test", flag.ContinueOnError)
+		bindToFlagSet(fs, config)
 
 		args := []string{"-allow-empty-rx", ".*Empty.*"}
 		require.NoError(t, fs.Parse(args))
 
-		assert.Equal(t, []string{".*Empty.*"}, config.AllowEmptyPatterns)
+		assert.Equal(t, Patterns{".*Empty.*"}, config.AllowEmptyPatterns)
 	})
 
 	t.Run("invalid pattern fails at parse time", func(t *testing.T) {
 		t.Parallel()
 
-		config := Config{}
-		fs := config.BindToFlagSet(flag.NewFlagSet("test", flag.ContinueOnError))
+		config := &Config{}
+
+		fs := flag.NewFlagSet("test", flag.ContinueOnError)
+		bindToFlagSet(fs, config)
 
 		assert.Error(t, fs.Parse([]string{"-enforce-rx", "[invalid"}))
 	})
@@ -104,8 +118,10 @@ func TestConfig_BindToFlagSet(t *testing.T) {
 	t.Run("empty pattern fails at parse time", func(t *testing.T) {
 		t.Parallel()
 
-		config := Config{}
-		fs := config.BindToFlagSet(flag.NewFlagSet("test", flag.ContinueOnError))
+		config := &Config{}
+
+		fs := flag.NewFlagSet("test", flag.ContinueOnError)
+		bindToFlagSet(fs, config)
 
 		assert.Error(t, fs.Parse([]string{"-enforce-rx", ""}))
 	})
@@ -117,8 +133,10 @@ func TestConfig_Integration(t *testing.T) {
 	t.Run("full workflow", func(t *testing.T) {
 		t.Parallel()
 
-		config := Config{}
-		fs := config.BindToFlagSet(flag.NewFlagSet("test", flag.ContinueOnError))
+		config := &Config{}
+
+		fs := flag.NewFlagSet("test", flag.ContinueOnError)
+		bindToFlagSet(fs, config)
 
 		args := []string{
 			"-enforce-rx", ".*Test.*",
@@ -130,10 +148,10 @@ func TestConfig_Integration(t *testing.T) {
 		}
 		require.NoError(t, fs.Parse(args))
 
-		assert.Equal(t, []string{".*Test.*"}, config.EnforcePatterns)
-		assert.Equal(t, []string{".*Skip.*"}, config.IgnorePatterns)
-		assert.Equal(t, []string{".*Optional.*"}, config.OptionalPatterns)
-		assert.Equal(t, []string{".*Empty.*"}, config.AllowEmptyPatterns)
+		assert.Equal(t, Patterns{".*Test.*"}, config.EnforcePatterns)
+		assert.Equal(t, Patterns{".*Skip.*"}, config.IgnorePatterns)
+		assert.Equal(t, Patterns{".*Optional.*"}, config.OptionalPatterns)
+		assert.Equal(t, Patterns{".*Empty.*"}, config.AllowEmptyPatterns)
 		assert.True(t, config.AllowEmpty)
 		assert.True(t, config.AllowEmptyReturns)
 		assert.False(t, config.AllowEmptyDeclarations)
@@ -146,13 +164,15 @@ func TestConfig_ProgrammaticDefaults(t *testing.T) {
 	t.Run("programmatically set values are preserved as flag defaults", func(t *testing.T) {
 		t.Parallel()
 
-		config := Config{
+		config := &Config{
 			AllowEmpty:             true,
 			AllowEmptyReturns:      true,
 			AllowEmptyDeclarations: true,
 		}
 
-		fs := config.BindToFlagSet(flag.NewFlagSet("test", flag.ContinueOnError))
+		fs := flag.NewFlagSet("test", flag.ContinueOnError)
+		bindToFlagSet(fs, config)
+
 		require.NoError(t, fs.Parse([]string{}))
 
 		assert.True(t, config.AllowEmpty)
@@ -163,13 +183,15 @@ func TestConfig_ProgrammaticDefaults(t *testing.T) {
 	t.Run("flags can override programmatically set values", func(t *testing.T) {
 		t.Parallel()
 
-		config := Config{
+		config := &Config{
 			AllowEmpty:             true,
 			AllowEmptyReturns:      true,
 			AllowEmptyDeclarations: true,
 		}
 
-		fs := config.BindToFlagSet(flag.NewFlagSet("test", flag.ContinueOnError))
+		fs := flag.NewFlagSet("test", flag.ContinueOnError)
+		bindToFlagSet(fs, config)
+
 		require.NoError(t, fs.Parse([]string{"-allow-empty", "-allow-empty-returns"}))
 
 		assert.True(t, config.AllowEmpty)
@@ -180,14 +202,15 @@ func TestConfig_ProgrammaticDefaults(t *testing.T) {
 	t.Run("mixed programmatic and flag patterns", func(t *testing.T) {
 		t.Parallel()
 
-		config := Config{
+		config := &Config{
 			EnforcePatterns:        []string{".*Initial.*"},
 			AllowEmpty:             true,
 			AllowEmptyReturns:      false,
 			AllowEmptyDeclarations: true,
 		}
 
-		fs := config.BindToFlagSet(flag.NewFlagSet("test", flag.ContinueOnError))
+		fs := flag.NewFlagSet("test", flag.ContinueOnError)
+		bindToFlagSet(fs, config)
 
 		args := []string{
 			"-enforce-rx", ".*Flag.*",
@@ -196,8 +219,8 @@ func TestConfig_ProgrammaticDefaults(t *testing.T) {
 		}
 		require.NoError(t, fs.Parse(args))
 
-		assert.Equal(t, []string{".*Initial.*", ".*Flag.*"}, config.EnforcePatterns)
-		assert.Equal(t, []string{".*Pattern.*"}, config.AllowEmptyPatterns)
+		assert.Equal(t, Patterns{".*Initial.*", ".*Flag.*"}, config.EnforcePatterns)
+		assert.Equal(t, Patterns{".*Pattern.*"}, config.AllowEmptyPatterns)
 		assert.True(t, config.AllowEmpty)
 		assert.True(t, config.AllowEmptyReturns)
 		assert.True(t, config.AllowEmptyDeclarations)
@@ -210,14 +233,14 @@ func TestNewAnalyzer_ConfigPreservation(t *testing.T) {
 	t.Run("programmatic config values preserved in analyzer", func(t *testing.T) {
 		t.Parallel()
 
-		config := Config{
+		config := &Config{
 			EnforcePatterns:        []string{".*Test.*"},
 			AllowEmpty:             true,
 			AllowEmptyReturns:      true,
 			AllowEmptyDeclarations: false,
 		}
 
-		a, err := NewAnalyzer(config)
+		a, err := NewAnalyzerWithConfig(config)
 		require.NoError(t, err)
 		require.NotNil(t, a)
 
@@ -229,8 +252,10 @@ func TestNewAnalyzer_ConfigPreservation(t *testing.T) {
 	t.Run("invalid pattern fails at set time", func(t *testing.T) {
 		t.Parallel()
 
-		config := Config{}
-		fs := config.BindToFlagSet(flag.NewFlagSet("test", flag.ContinueOnError))
+		config := &Config{}
+
+		fs := flag.NewFlagSet("test", flag.ContinueOnError)
+		bindToFlagSet(fs, config)
 
 		assert.Error(t, fs.Parse([]string{"-enforce-rx", "[invalid"}))
 	})
