@@ -1,17 +1,23 @@
 version: 2
+
 updates:
-  - package-ecosystem: "github-actions"
+  - package-ecosystem: gomod
     directory: "/"
     schedule:
-      interval: "daily"
-      time: "00:00"
-      timezone: "Etc/UTC"
-    rebase-strategy: 'auto'
-    
-  - package-ecosystem: "gomod"
-    directory: /
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      gomod:
+        patterns:
+          - "*"  # Group all updates into a single larger pull request.
+  - package-ecosystem: github-actions
+    directory: "/"
     schedule:
-      interval: "daily"
-      time: "00:00"
-      timezone: "Etc/UTC"
-    rebase-strategy: 'auto'
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns:
+          - "*"  # Group all updates into a single larger pull request.
