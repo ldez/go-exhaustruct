@@ -31,6 +31,7 @@ linters:
     - sloglint
     - noinlineerr # because that's a stupid rule
     - wsl # replaced by wsl_v5
+    - gomodguard
   settings:
     lll:
       line-length: 120
@@ -219,6 +220,8 @@ linters:
           disabled: true
         - name: duplicated-imports
           disabled: true
+        - name: enforce-switch-style
+          disabled: true
     testifylint:
       disable:
         - require-error
@@ -235,21 +238,11 @@ linters:
         linters:
           - funlen
           - goconst
-    paths:
-      - testdata/.*
-      - vendor/.* # ignore vendor
-      - .*\.gen\.go$ # ignore generated files
 
 formatters:
   enable:
     - gci
     - gofmt
-
-  exclusions:
-    paths:
-      - testdata/.*
-      - vendor/.* # ignore vendor
-      - .*\.gen\.go$ # ignore generated files
 
   settings:
     gci:
